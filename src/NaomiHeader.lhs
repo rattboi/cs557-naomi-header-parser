@@ -1,6 +1,10 @@
+> {-# LANGUAGE OverloadedStrings #-}
+
 This is a literate Haskell file
 
-> module Main where
+> module NaomiHeader where
 
-> main :: IO ()
-> main = putStrLn "Hello, Haskell!"
+> import Data.Attoparsec.ByteString
+
+> something :: IO ()
+> something = putStrLn "Hello, Haskell!"

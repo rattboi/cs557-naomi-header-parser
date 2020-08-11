@@ -10,7 +10,7 @@ This is a literate Haskell file
 > import Data.Word (Word8)
 > default (ByteString)
 
-> data NaomiHeader = Header { publisher :: String 
+> data NaomiHeader = Header { publisher :: ByteString 
 >                           , japGameName :: String 
 >                           , usaGameName :: String 
 >                           , expGameName :: String 
@@ -33,7 +33,8 @@ This is a literate Haskell file
 >   _ <- string "NAOMI" 
 >   BS.take 11
 >   _ <- newline
->   pure $ Header "Hello" "Game1" "Game2" "Game3" "Game4" "Game5" "Game6" "Game7" "Game8"
+>   publisher <- BS.take 32
+>   pure $ Header publisher "Game1" "Game2" "Game3" "Game4" "Game5" "Game6" "Game7" "Game8"
 
 > newline :: Parser Word8
 > newline = word8 10
@@ -42,3 +43,5 @@ This is a literate Haskell file
 > readInt = B.foldl' addup 0
 >   where addup acc x = acc * 10 + (fromIntegral x - 48) 
 
+> spacePadStr :: String -> Int -> String
+> spacePadStr s l = s ++ (Prelude.take (l - Prelude.length s) (repeat ' '))

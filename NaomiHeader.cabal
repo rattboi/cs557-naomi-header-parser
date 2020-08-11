@@ -1,6 +1,6 @@
 cabal-version:       >=1.10
 
-name:                NaomiHeader
+name:                NaomiHeaderParser
 version:             0.1.0.0
 -- synopsis:
 -- description:
@@ -19,13 +19,14 @@ extra-source-files:
 library
   build-depends:
     base >=4.14 && <4.15,
+    bytestring,
     attoparsec
 
   default-language:
     Haskell2010
 
   exposed-modules:
-    NaomiHeader
+    NaomiHeaderParser
 
   ghc-options:
     -Wall -fwarn-tabs
@@ -43,7 +44,7 @@ test-suite test
     attoparsec           >= 0.10.2,
     bytestring           >= 0.9,
     zlib                 >= 0.5,
-    NaomiHeader
+    NaomiHeaderParser
 
   ghc-options:
     -Wall -Werror

@@ -9,6 +9,7 @@ This is a literate Haskell file
 > import Data.ByteString as B hiding (map, pack, take, length)
 > import qualified Data.ByteString.Char8 as BC hiding (readInt)
 > import qualified Data.Text as T
+> import qualified Data.Char as C
 > import Data.Text.Encoding as TE
 > default (ByteString)
 
@@ -24,6 +25,9 @@ This is a literate Haskell file
 >                           , dateYear    :: Int
 >                           , dateMonth   :: Int
 >                           , dateDay     :: Int
+>                           , serialNum   :: ByteString
+>                           , mode8m      :: Bool
+>                           , modeG1Bus   :: Bool
 > } 
 >   deriving Show
 
@@ -50,6 +54,14 @@ This is a literate Haskell file
 >   year'      <- BS.take 2
 >   month'     <- BS.take 1
 >   day'       <- BS.take 1
+>   serial'    <- BS.take 4
+>   mode8M'    <- BS.take 2
+>   modeG1Bus' <- BS.take 2
+>   g1BusInit' <- BS.take (8*4)  -- unused for now
+>   mXchksum'  <- BS.take 132    -- unused for now
+>   eepromInit'<- BS.take (8*16) -- unused for now
+>   seqText'   <- BS.take (8*32) -- unused for now
+>   
 >   pure $ Header 
 >     (stripByteString publisher') 
 >     (stripByteString game1') 
@@ -63,7 +75,9 @@ This is a literate Haskell file
 >     (readInt year')
 >     (readInt month')
 >     (readInt day')
-
+>     (serial')
+>     (get8mMode mode8M')
+>     (getG1BusMode modeG1Bus')
 
 > stripByteString :: ByteString -> ByteString
 > stripByteString = (TE.encodeUtf8 . T.stripEnd . TE.decodeUtf8)
@@ -71,6 +85,12 @@ This is a literate Haskell file
 > readInt :: ByteString -> Int
 > readInt = B.foldl' addup 0
 >   where addup acc x = acc * 10 + (fromIntegral x - 48) 
+
+> get8mMode :: ByteString -> Bool
+> get8mMode = (/= BC.pack [C.chr 0, C.chr 0])
+
+> getG1BusMode :: ByteString -> Bool
+> getG1BusMode = get8mMode
 
 > spacePadStr :: String -> Int -> String
 > spacePadStr s l = s ++ (take (l - length s) (repeat ' '))
@@ -89,4 +109,24 @@ This is a literate Haskell file
 >   (spacePadStr "Dummy Title #3" 32) ++
 >   ("99") ++
 >   ("9") ++
->   ("9")
+>   ("9") ++
+>   ("1234") ++
+>   [C.chr 0, C.chr 0] ++
+>   [C.chr 0, C.chr 0] ++
+>   (spacePadStr "" (8 * 4)) ++              -- G1 Bus Initvals, if G1Bus mode is non-zero
+>   (spacePadStr "" 132) ++                  -- M2/M4-type rom checksum
+>   (spacePadStr "" (8 * 16)) ++             -- EEPROM init values (16 bytes per region, 8 regions)
+>   (spacePadStr "" (8 * 32)) ++             -- Sequence Text (32 bytes per region, 8 regions)
+>   (spacePadStr "" (8 * 12) ++              -- Up to 8x Game load entries (3-tuples of 4 bytes each)
+>   (spacePadStr "" (8 * 12) ++              -- Up to 8x Test load entries (3-tuples of 4 bytes each)
+>   [C.chr 0, C.chr 0, C.chr 0, C.chr 0] ++  -- Main entrypoint in RAM
+>   [C.chr 0, C.chr 0, C.chr 0, C.chr 0] ++  -- Test entrypoint in RAM
+>   [C.chr 0] ++                             -- Supported Regions (bitfield)
+>   [C.chr 0] ++                             -- Supported # of players (bitfield)
+>   [C.chr 0] ++                             -- Supported display frequency (bitfield)
+>   [C.chr 0] ++                             -- Supported display orientation (bitfield)
+>   [C.chr 0] ++                             -- Check rom board serial number eeprom? (yes if 1)
+>   [C.chr 0] ++                             -- Coin service type (0 = common, 1 = individual)
+>   (spacePadStr "" 138) ++                  -- M1-type rom checksums
+>   (spacePadStr "" 71) ++                   -- Unused padding
+>   [C.chr 0]                                -- Header Encryption flag

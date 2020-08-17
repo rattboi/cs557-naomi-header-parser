@@ -1,8 +1,9 @@
 > {-# LANGUAGE OverloadedStrings #-}
 
-This is a literate Haskell file
+Written by Bradon Kanyid over the course of a week
+CS557
 
-> module NaomiHeaderParser (parseNaomiHeader, fakeHeader) where
+> module NaomiHeaderParser (parseNaomiHeader, fakeHeader, printNaomiHeader) where
 
 > import Data.ByteString as B hiding (map, pack, take, length)
 > import qualified Data.ByteString.Char8 as BC hiding (readInt)
@@ -11,17 +12,31 @@ This is a literate Haskell file
 > import Data.Text.Encoding as TE
 > import qualified Data.Serialize as DS
 > import Data.Int
+> import Data.Bits
 > default (ByteString)
 
 > data LoadEntry = Entry { romOffset   :: Int32
 >                        , ramAddress  :: Int32
 >                        , entryLength :: Int32
-> } deriving Show
+> } 
+
+> instance Show LoadEntry where
+>   show (Entry rom ram eLen) = 
+>     "\n" ++
+>     "            Rom Offset: " ++ show rom ++ "\n" ++
+>     "            Ram Address: " ++ show ram ++ "\n" ++
+>     "            Entry Length: " ++ show eLen
 
 > data Mode8M = Not8MMode | Is8MMode
 >   deriving (Eq, Ord, Show)
 
 > data ModeG1Init = NoInit | WithInit ByteString
+>   deriving (Eq, Ord, Show)
+
+> data EepromSerialCheck = NoCheckEepromSerial | CheckEepromSerial
+>   deriving (Eq, Ord, Show)
+
+> data CoinService = Common | Individual
 >   deriving (Eq, Ord, Show)
 
 > data HeaderEncryption = IsEncrypted | NotEncrypted
@@ -31,17 +46,102 @@ This is a literate Haskell file
 >                                        , coin2Rate :: Int8
 >                                        , creditRate :: Int8
 >                                        , bonusRate :: Int8
-> } deriving Show
+> } 
+
+> instance Show CoinSettings where
+>   show (ManualCoinSettings c1rate c2rate crdRate bRate) = 
+>     "\n" ++
+>     "            Coin 1 Rate: " ++ show c1rate ++ "\n" ++
+>     "            Coin 2 Rate: " ++ show c2rate++ "\n" ++
+>     "            Credit Rate: " ++ show crdRate ++ "\n" ++
+>     "            Bonus Rate : " ++ show bRate
+
 
 > data CoinSetting = Standard Int8 | Manual CoinSettings
->   deriving Show
+
+> instance Show CoinSetting where
+>   show (Standard s) = "\n          Built-in Setting: " ++ show s
+>   show (Manual m)   = "\n          Manual Setting: " ++ show m
+
 
 > data EepromInit = BiosDefaults | 
 >   EepromSettings { systemSettings :: Int8
 >                  , coinChuteType :: Int8
 >                  , coinSetting :: CoinSetting
 >                  , seqTextOffset :: ByteString
-> } deriving Show
+> } 
+
+> instance Show EepromInit where
+>   show (BiosDefaults) = "\n    BiosDefaults"
+>   
+>   show (EepromSettings s chute coin seq) = 
+>     "\n    {\n" ++ 
+>     "      System Settings: " ++ show s ++ "\n" ++
+>     "      Coin Chute Type: " ++ show chute ++ "\n" ++
+>     "        Coin Settings: " ++ show coin ++ "\n" ++
+>     "      Seq Text Offset: " ++ show seq ++ "\n" ++
+>     "    }"
+
+
+> data RegionSupport = Regions { japan :: Bool
+>                              , usa :: Bool
+>                              , export :: Bool
+>                              , korea :: Bool
+>                              , australia :: Bool
+> }
+
+> instance Show RegionSupport where
+>   show (Regions j u e k a) = 
+>     "{\n" ++ 
+>     "                Japan: " ++ show j ++ "\n" ++
+>     "                   US: " ++ show u ++ "\n" ++
+>     "                  Exp: " ++ show e ++ "\n" ++
+>     "                  Kor: " ++ show k ++ "\n" ++
+>     "                  Aus: " ++ show a ++ "\n" ++
+>     "              }"
+
+> data PlayerSupport = Players { player1 :: Bool
+>                              , player2 :: Bool
+>                              , player3 :: Bool
+>                              , player4 :: Bool
+> }
+
+> instance Show PlayerSupport where
+>   show (Players p1 p2 p3 p4) = 
+>     "{\n" ++ 
+>     "                1-Player: " ++ show p1 ++ "\n" ++
+>     "                2-Player: " ++ show p2 ++ "\n" ++
+>     "                3-Player: " ++ show p3 ++ "\n" ++
+>     "                4-Player: " ++ show p4 ++ "\n" ++
+>     "              }"
+
+> data FrequencySupport = Frequencies { freq31khz:: Bool
+>                                     , freq15khz:: Bool
+> }
+
+> instance Show FrequencySupport where
+>   show (Frequencies f1 f2) = 
+>     "{\n" ++ 
+>     "                31KHz: " ++ show f1 ++ "\n" ++
+>     "                15KHz: " ++ show f2 ++ "\n" ++
+>     "              }"
+
+> data OrientationSupport = Orientations { horizontal :: Bool
+>                                        , vertical   :: Bool
+> }
+
+> instance Show OrientationSupport where
+>   show (Orientations f1 f2) = 
+>     "{\n" ++ 
+>     "                Horizontal: " ++ show f1 ++ "\n" ++
+>     "                  Vertical: " ++ show f2 ++ "\n" ++
+>     "              }"
+
+> data RomChecksum = NoChecksum | Checksum ByteString
+
+> instance Show RomChecksum where
+>   show (Checksum bytes) = show bytes
+>   show (NoChecksum) = "NoChecksum"
 
 > data NaomiHeader = Header { publisher :: ByteString
 >                           , japGameName :: ByteString
@@ -52,28 +152,67 @@ This is a literate Haskell file
 >                           , rg6GameName :: ByteString
 >                           , rg7GameName :: ByteString
 >                           , rg8GameName :: ByteString
->                           , dateYear    :: Int
->                           , dateMonth   :: Int
->                           , dateDay     :: Int
+>                           , dateYear    :: Int16
+>                           , dateMonth   :: Int8
+>                           , dateDay     :: Int8
 >                           , serialNum   :: ByteString
 >                           , mode8m      :: Mode8M
 >                           , modeG1Bus   :: ModeG1Init
->                           , mXchksum    :: ByteString
+>                           , mXchksum    :: RomChecksum
 >                           , eepromInit  :: [EepromInit]
 >                           , seqText     :: ByteString
 >                           , mainLdEnts  :: [LoadEntry]
 >                           , testLdEnts  :: [LoadEntry]
 >                           , mainEntry   :: Int32
 >                           , testEntry   :: Int32
->                           , supRegions  :: Int8
->                           , supPlayers  :: Int8
->                           , supDispFqs  :: Int8
->                           , supDispOrs  :: Int8
->                           , chkSerEep   :: Int8
->                           , coinSvcType :: Int8
->                           , m1RomChksum :: ByteString
+>                           , supRegions  :: RegionSupport
+>                           , supPlayers  :: PlayerSupport
+>                           , supDispFqs  :: FrequencySupport 
+>                           , supDispOrs  :: OrientationSupport
+>                           , chkSerEep   :: EepromSerialCheck
+>                           , coinSvcType :: CoinService
+>                           , m1RomChksum :: RomChecksum
 >                           , hdrEncFlag  :: HeaderEncryption
-> } deriving Show
+> }
+
+> instance Show NaomiHeader where
+>   show (Header p jgn usgn exgn krgn augn _ _ _ year month day serial mode8 modeg1 mXchksum eepromInit seqtext mainLdEnts testLdEnts mainEntry testEntry supRegions supPlayers supDispFqs supDispOrs chkSerEep coinSvcType m1RomChksum hdrEncFlag) = 
+>     "{\n" ++ 
+>     "  Publisher: " ++ show p ++ "\n" ++
+>     "  Regional Game Names: {" ++ "\n" ++ 
+>     "    Japan: " ++ show jgn ++ "\n" ++ 
+>     "       US: " ++ show usgn ++ "\n" ++ 
+>     "      Exp: " ++ show exgn ++ "\n" ++ 
+>     "      Kor: " ++ show krgn ++ "\n" ++ 
+>     "      Aus: " ++ show augn ++ "\n" ++
+>     "  }\n" ++
+>     "  Mfr Date: " ++ show month ++ "/" ++ show day ++ "/" ++ show year ++ "\n" ++
+>     "  Serial #: " ++ show serial ++ "\n" ++
+>     "  8Mb Mode: " ++ show mode8 ++ "\n" ++
+>     "  G1 Bus Mode: " ++ show modeg1 ++ "\n" ++
+>     "  M2/M4 Checksum: " ++ show mXchksum ++ "\n" ++
+>     "  Eeprom Init Vals: " ++ show eepromInit ++ "\n" ++
+>     "  Sequence Text: " ++ show seqtext ++ "\n" ++
+>     "  Main Load Entries: " ++ show mainLdEnts ++ "\n" ++
+>     "  Test Load Entries: " ++ show testLdEnts ++ "\n" ++
+>     "  Main Entrypoint: " ++ show mainEntry ++ "\n" ++
+>     "  Test Entrypoint: " ++ show testEntry ++ "\n" ++
+>     "  Supported Options: {" ++ "\n" ++
+>     "              Regions: " ++ show supRegions ++ "\n" ++
+>     "              Players: " ++ show supPlayers ++ "\n" ++
+>     "              Disp Freqs: " ++ show supDispFqs ++ "\n" ++
+>     "              Disp Orients: " ++ show supDispOrs ++ "\n" ++
+>     "  }\n" ++
+>     "  Check EEPROM Serial: " ++ show chkSerEep ++ "\n" ++
+>     "  Coin Service Type: " ++ show coinSvcType ++ "\n" ++
+>     "  M1 Checksum: " ++ show m1RomChksum ++ "\n" ++
+>     "  Header Encryption: " ++ show hdrEncFlag ++ "\n" ++
+>     "\n"
+
+> printNaomiHeader :: Either String NaomiHeader -> IO ()
+> printNaomiHeader header = case header of
+>   Left s -> B.putStr $ BC.pack s
+>   Right nh -> B.putStr $ BC.pack (show nh)
 
 > parseNaomiHeader :: ByteString -> Either String NaomiHeader
 > parseNaomiHeader c = DS.runGet parseMetadata c 
@@ -90,9 +229,9 @@ This is a literate Haskell file
 >   dummy1'      <- parseSpacePaddedString 32
 >   dummy2'      <- parseSpacePaddedString 32
 >   dummy3'      <- parseSpacePaddedString 32
->   year'        <- DS.getByteString 2
->   month'       <- DS.getByteString 1
->   day'         <- DS.getByteString 1
+>   year'        <- DS.getInt16le
+>   month'       <- DS.getInt8
+>   day'         <- DS.getInt8
 >   serial'      <- DS.getByteString 4
 >   mode8M'      <- DS.getInt16le
 >   modeG1Bus'   <- DS.getInt16le
@@ -123,26 +262,26 @@ This is a literate Haskell file
 >     (dummy1')
 >     (dummy2')
 >     (dummy3')
->     (readInt year')
->     (readInt month')
->     (readInt day')
+>     (year')
+>     (month')
+>     (day')
 >     (serial')
 >     (get8mMode mode8M')
 >     (getG1BusMode modeG1Bus' g1BusInit')
->     (mXchksum')
+>     (getChecksum mXchksum')
 >     (eepromInit')
 >     (seqText')
 >     (mainLdEnts')
 >     (testLdEnts')
 >     (mainEntPt')
 >     (testEntPt')
->     (supRegions')
->     (supPlayers')
->     (supDispFqs')
->     (supDispOrs')
->     (chkSerEep')
->     (coinSvcType')
->     (m1RomChksum')
+>     (getSupportedRegions supRegions')
+>     (getSupportedPlayers supPlayers')
+>     (getSupportedFrequencies supDispFqs')
+>     (getSupportedOrientations supDispOrs')
+>     (getCheckEepromSerial chkSerEep')
+>     (getCoinService coinSvcType')
+>     (getChecksum m1RomChksum')
 >     (getHeaderEncryption hdrEncFlag')
 
 > parseSpacePaddedString :: Int -> DS.Get ByteString
@@ -213,27 +352,66 @@ This is a literate Haskell file
 > stripByteString :: ByteString -> ByteString
 > stripByteString = (TE.encodeUtf8 . T.stripEnd . TE.decodeUtf8)
 
-> readInt :: ByteString -> Int
-> readInt = B.foldl' addup 0
->   where addup acc x = acc * 10 + (fromIntegral x - 48) 
-
 > get8mMode :: Int16 -> Mode8M
-> get8mMode m = do 
->  if m /= 0
->    then Is8MMode
->  else Not8MMode
+> get8mMode m
+>   | m /= 0    = Is8MMode
+>   | otherwise = Not8MMode
 
 > getG1BusMode :: Int16 -> ByteString -> ModeG1Init
-> getG1BusMode m g1init = do
->   if m /= 0
->     then WithInit g1init
->   else NoInit
+> getG1BusMode m g1init 
+>   | m /= 0    = WithInit g1init
+>   | otherwise = NoInit
+
+> getCheckEepromSerial :: Int8 -> EepromSerialCheck
+> getCheckEepromSerial m 
+>   | m == 0    = NoCheckEepromSerial
+>   | otherwise = CheckEepromSerial
+
+> getCoinService :: Int8 -> CoinService
+> getCoinService c 
+>   | c == 0    = Common
+>   | otherwise = Individual
 
 > getHeaderEncryption :: Int8 -> HeaderEncryption
-> getHeaderEncryption m = 
->   if m /= 0
->     then IsEncrypted
->   else NotEncrypted
+> getHeaderEncryption m 
+>   | m /= -128 = IsEncrypted
+>   | otherwise = NotEncrypted
+
+> getChecksum :: ByteString -> RomChecksum
+> getChecksum bytes = case (B.all (== 0) bytes) of
+>   True  -> NoChecksum
+>   False -> Checksum bytes
+
+> getSupportedRegions :: Int8 -> RegionSupport
+> getSupportedRegions r = Regions 
+>   (testBit r 0) 
+>   (testBit r 1) 
+>   (testBit r 2) 
+>   (testBit r 3) 
+>   (testBit r 4)
+
+> getSupportedPlayers :: Int8 -> PlayerSupport
+> getSupportedPlayers p 
+>  | p == 0    = Players True True True True
+>  | otherwise = Players
+>    (testBit p 0) 
+>    (testBit p 1) 
+>    (testBit p 2) 
+>    (testBit p 3) 
+
+> getSupportedFrequencies :: Int8 -> FrequencySupport
+> getSupportedFrequencies f 
+>  | f == 0    = Frequencies True True
+>  | otherwise = Frequencies
+>    (testBit f 0) 
+>    (testBit f 1) 
+
+> getSupportedOrientations :: Int8 -> OrientationSupport
+> getSupportedOrientations o 
+>  | o == 0    = Orientations True True
+>  | otherwise = Orientations
+>    (testBit o 0) 
+>    (testBit o 1) 
 
 > spacePadStr :: String -> Int -> String
 > spacePadStr s l = s ++ (take (l - length s) (repeat ' '))
@@ -246,6 +424,18 @@ This is a literate Haskell file
 >   (DS.encode rom) `BC.append`
 >   (DS.encode ram) `BC.append`
 >   (DS.encode eLen)
+
+> fakeEepromInit :: Int8 -> Int8 -> Int8 -> Int8 -> Int8 -> Int8 -> Int8 -> Int8 -> String
+> fakeEepromInit apply system chute coin coin1rate coin2rate creditrate bonusrate = BC.unpack $
+>   (DS.encode apply) `BC.append`
+>   (DS.encode system) `BC.append`
+>   (DS.encode chute) `BC.append`
+>   (DS.encode coin) `BC.append`
+>   (DS.encode coin1rate) `BC.append`
+>   (DS.encode coin2rate) `BC.append`
+>   (DS.encode creditrate) `BC.append`
+>   (DS.encode bonusrate) `BC.append`
+>   (DS.encode (0 :: Int64))
 
 > fakeHeader :: ByteString 
 > fakeHeader = BC.pack $ 
@@ -267,8 +457,13 @@ This is a literate Haskell file
 >   fakeBytes 2 ++
 >   fakeBytes (8 * 4) ++                     -- G1 Bus Initvals, if G1Bus mode is non-zero
 >   fakeBytes 132 ++                         -- M2/M4-type rom checksum
->   fakeBytes (8 * 16) ++                    -- EEPROM init values (16 bytes per region, 8 regions)
->   (spacePadStr "" (8 * 32)) ++             -- Sequence Text (32 bytes per region, 8 regions)
+>   fakeEepromInit 1 5 0 25 0 0 0 0 ++
+>   fakeEepromInit 0 0 0 0 0 0 0 0 ++
+>   fakeEepromInit 1 6 1 28 1 1 1 1 ++
+>   fakeBytes (5 * 16) ++                    -- EEPROM init values (16 bytes per region, 8 regions)
+>   (spacePadStr "CREDIT TO START" 32) ++             -- Sequence Text (32 bytes per region, 8 regions)
+>   (spacePadStr "CREDIT TO CONTINUE" 32) ++             -- Sequence Text (32 bytes per region, 8 regions)
+>   (spacePadStr "" (6 * 32)) ++             -- Sequence Text (32 bytes per region, 8 regions)
 >   (fakeEntry 1234 5678 4096) ++
 >   fakeBytes (3*4*7) ++                     -- Up to 8x Game load entries (3-tuples of 4 bytes each)
 >   (fakeEntry 5555 6666 4096) ++
@@ -281,6 +476,6 @@ This is a literate Haskell file
 >   fakeBytes 1 ++                           -- Supported display orientation (bitfield)
 >   fakeBytes 1 ++                           -- Check rom board serial number eeprom? (yes if 1)
 >   fakeBytes 1 ++                           -- Coin service type (0 = common, 1 = individual)
->   (spacePadStr "" 138) ++                  -- M1-type rom checksums
+>   fakeBytes 138 ++                         -- M1-type rom checksums
 >   (spacePadStr "" 71) ++                   -- Unused padding
 >   fakeBytes 1                              -- Header Encryption flag

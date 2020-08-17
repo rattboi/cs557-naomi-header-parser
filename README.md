@@ -4,6 +4,10 @@ Final project for CS557 - Functional Programming - Summer 2020 (Pandemic Days)
 
 Simple header parser, using Cereal to parse bytes
 
+# Research
+
+Thanks go to [DragonMinded](https://github.com/DragonMinded/netboot/blob/trunk/docs/naomi.md) for documenting the Naomi header format so well.
+
 # Build
 ```
 cabal build
